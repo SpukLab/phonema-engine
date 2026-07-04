@@ -3,6 +3,7 @@ import { SIMPLEX_3D } from "./noise";
 export const ORGANISM_VERTEX = /* glsl */ `
 uniform sampler2D uState;
 uniform float uDisplacementScale;
+uniform float uAgeDisplacementScale;
 uniform float uWarpScale;
 uniform float uWarpStrength;
 
@@ -27,28 +28,34 @@ vec2 warpUV(vec2 uv, float scale, float strength, vec2 seed) {
   return uv + vec2(wx, wy) * strength;
 }
 
-float sampleField(vec2 uv) {
-  return texture2D(uState, uv).r;
+// Altura combinada: V es la forma que respira ahora mismo; S es el
+// desgaste acumulado, que siempre resta (colapsa hacia adentro, nunca
+// infla). Esto es lo que rompe la silueta esférica de raíz — no un
+// bulto decorativo, sino una asimetría permanente que resulta de la
+// propia historia de tensión del organismo.
+float sampleHeight(vec2 uv) {
+  vec4 s = texture2D(uState, uv);
+  return s.r * uDisplacementScale - s.a * uAgeDisplacementScale;
 }
 
 void main() {
   vec2 dUv = warpUV(uv, uWarpScale, uWarpStrength, vec2(3.1, 1.7));
-  float field = sampleField(dUv);
+  float height = sampleHeight(dUv);
 
-  vec3 displaced = position + normal * field * uDisplacementScale;
+  vec3 displaced = position + normal * height;
 
-  float fx1 = sampleField(dUv + vec2(EPS, 0.0));
-  float fx0 = sampleField(dUv - vec2(EPS, 0.0));
-  float fy1 = sampleField(dUv + vec2(0.0, EPS));
-  float fy0 = sampleField(dUv - vec2(0.0, EPS));
+  float hx1 = sampleHeight(dUv + vec2(EPS, 0.0));
+  float hx0 = sampleHeight(dUv - vec2(EPS, 0.0));
+  float hy1 = sampleHeight(dUv + vec2(0.0, EPS));
+  float hy0 = sampleHeight(dUv - vec2(0.0, EPS));
 
   vec3 tangentU = normalize(cross(normal, vec3(0.0, 1.0, 0.0)) + vec3(0.0001));
   vec3 tangentV = normalize(cross(normal, tangentU));
 
   vec3 perturbedNormal = normalize(
     normal
-    - tangentU * (fx1 - fx0) * uDisplacementScale * 4.0
-    - tangentV * (fy1 - fy0) * uDisplacementScale * 4.0
+    - tangentU * (hx1 - hx0) * 4.0
+    - tangentV * (hy1 - hy0) * 4.0
   );
 
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
@@ -125,6 +132,18 @@ float mesoHeight(vec2 uv, float scale) {
   return fbm(vec3(g.x * scale, g.y * scale * 1.9, 5.0));
 }
 
+// Variante "vieja": ridged noise (1 - |fbm|, elevado al cuadrado para
+// afilar crestas) — se lee como fractura o veta cristalizada, no como
+// el mismo bulto suave de la variante joven. Distintas regiones deben
+// pertenecer a familias estructurales distintas, no a la misma con
+// otra semilla — eso es lo que rompe "esto es procedural noise".
+float mesoHeightOld(vec2 uv, float scale) {
+  vec2 g = grainAxis(uv);
+  float n = fbm(vec3(g.x * scale, g.y * scale * 1.9, 5.0));
+  float ridged = 1.0 - abs(n);
+  return ridged * ridged * 1.6 - 0.5;
+}
+
 void main() {
   vec3 Nmacro = normalize(vNormal);
   vec3 V = normalize(vViewPosition);
@@ -133,9 +152,27 @@ void main() {
   vec3 tangentU = normalize(cross(Nmacro, vec3(0.0, 1.0, 0.0)) + vec3(0.0001));
   vec3 tangentV = normalize(cross(Nmacro, tangentU));
 
-  float mh  = mesoHeight(vMeshUv, uMesoScale);
-  float mhx = mesoHeight(vMeshUv + vec2(MESO_EPS, 0.0), uMesoScale) - mh;
-  float mhy = mesoHeight(vMeshUv + vec2(0.0, MESO_EPS), uMesoScale) - mh;
+  // Edad local: decide qué familia estructural aparece acá. No es un
+  // parámetro estético — es la misma cantidad que ya deformó la malla
+  // en el vertex shader, leída de nuevo para que estructura y forma
+  // cuenten la misma historia.
+  float ageValue = texture2D(uState, vMeshUv).a;
+  float ageBlend = smoothstep(0.35, 0.8, ageValue);
+
+  float mhYoung = mesoHeight(vMeshUv, uMesoScale);
+  float mhOld = mesoHeightOld(vMeshUv, uMesoScale);
+  float mh = mix(mhYoung, mhOld, ageBlend);
+
+  float mhx = mix(
+    mesoHeight(vMeshUv + vec2(MESO_EPS, 0.0), uMesoScale),
+    mesoHeightOld(vMeshUv + vec2(MESO_EPS, 0.0), uMesoScale),
+    ageBlend
+  ) - mh;
+  float mhy = mix(
+    mesoHeight(vMeshUv + vec2(0.0, MESO_EPS), uMesoScale),
+    mesoHeightOld(vMeshUv + vec2(0.0, MESO_EPS), uMesoScale),
+    ageBlend
+  ) - mh;
 
   vec3 N = normalize(Nmacro - tangentU * mhx * uMesoStrength - tangentV * mhy * uMesoStrength);
 
@@ -184,7 +221,8 @@ void main() {
   // a third, coarser identity layer, not a repeat of either.
   float patina = fbm(vec3(vMeshUv * 2.2, 77.0));
   float patinaMask = smoothstep(0.25, 0.6, patina);
-  albedo = mix(albedo, mix(albedo, uPatinaColor, 0.4), patinaMask * uPatinaStrength);
+  float ageOnPatina = mix(0.25, 1.4, ageValue);
+  albedo = mix(albedo, mix(albedo, uPatinaColor, 0.4), patinaMask * uPatinaStrength * ageOnPatina);
 
   // Microscopic optical response: per-pixel roughness variation (finer
   // than the mesoscale relief) modulates a real specular term. Internal
@@ -201,7 +239,7 @@ void main() {
   float spec = pow(max(dot(N, H), 0.0), specExponent) * specIntensity * uSpecularStrength;
 
   vec3 diffuse = albedo * uKeyLightColor * NdotL * aoFactor;
-  vec3 fill = albedo * uFillColor * (1.0 - NdotL) * 0.4 * aoFactor;
+  vec3 fill = albedo * uFillColor * (1.0 - NdotL) * 0.12 * aoFactor;
   vec3 rim = uKeyLightColor * fresnel * 0.15;
   vec3 specular = uKeyLightColor * spec;
 

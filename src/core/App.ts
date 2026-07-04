@@ -26,12 +26,12 @@ export class App {
     this.scene = new THREE.Scene();
 
     this.camera = new THREE.PerspectiveCamera(
-      32,
+      24,
       window.innerWidth / window.innerHeight,
       0.1,
       100
     );
-    this.camera.position.set(0, 0, 4.2);
+    this.camera.position.set(0, 0, 3.6);
     this.camera.lookAt(0, 0, 0);
 
     // Field resolution: 256 is enough for slow diffusion to read as
@@ -54,7 +54,13 @@ export class App {
       thermalNoise: 0.05,
       epsilon: 0.06,
       gamma: 0.9,
-      wCoupling: 1.8
+      wCoupling: 1.8,
+      // ageGain/ageDecay: la razón entre ambos importa más que los
+      // valores absolutos. decay << gain para que S sea memoria de
+      // largo plazo, no otro ciclo — una cicatriz tarda en formarse
+      // (gain moderado) y prácticamente no se borra (decay mínimo).
+      ageGain: 0.12,
+      ageDecay: 0.002
     });
 
     this.organism = new Organism(this.simulation.stateTexture);
@@ -96,7 +102,7 @@ export class App {
 
     this.camera.position.x = driftX;
     this.camera.position.y = driftY;
-    this.camera.position.z = 4.2 + dolly;
+    this.camera.position.z = 3.6 + dolly;
     this.camera.lookAt(0, 0, 0);
 
     this.renderer.render(this.scene, this.camera);

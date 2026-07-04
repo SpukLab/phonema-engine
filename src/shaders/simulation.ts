@@ -15,9 +15,12 @@ void main() {
 //       W se integra a partir de V y a su vez inhibe la reacción de V.
 //       Esto es lo que produce quietud → tensión → liberación →
 //       reorganización de forma emergente, verificado numéricamente
-//       (tools/fhn_check.py) antes de escribirse aquí: sin W, el campo
-//       biestable puro solo decae monótonamente hacia una meseta.
-// a = sin usar.
+//       (tools/fhn_check.py) antes de escribirse aquí.
+//   a = S — desgaste acumulado ("edad"). Crece con cada evento de
+//       tensión (|W| alto) y decae casi nada. No es una animación:
+//       es una cicatriz permanente. Se siembra ya rica y asimétrica
+//       en el init, para que el organismo parezca haber vivido mucho
+//       antes de que la cámara empezara a observarlo.
 export const SIMULATION_FRAGMENT = /* glsl */ `
 precision highp float;
 
@@ -31,6 +34,8 @@ uniform float uThermalNoise;
 uniform float uEpsilon;
 uniform float uGamma;
 uniform float uWCoupling;
+uniform float uAgeGain;
+uniform float uAgeDecay;
 
 varying vec2 vUv;
 
@@ -50,6 +55,7 @@ void main() {
   vec4 prevCenter = texture2D(uPrevState, vUv);
   float center = prevCenter.r;
   float wPrev = prevCenter.b;
+  float sPrev = prevCenter.a;
 
   float left   = texture2D(uPrevState, vec2(xL, vUv.y)).r;
   float right  = texture2D(uPrevState, vec2(xR, vUv.y)).r;
@@ -86,9 +92,15 @@ void main() {
   float dW = uEpsilon * (center - uGamma * wPrev);
   float nextW = clamp(wPrev + dW * uDeltaTime, -2.0, 2.0);
 
+  // S solo mira hacia atrás: crece con la magnitud de la tensión que
+  // ya ocurrió, decae casi nada. Es una ratchet, no una oscilación —
+  // por diseño, para que sea historia acumulada y no otro ciclo más.
+  float dS = uAgeGain * abs(wPrev) - uAgeDecay * sPrev;
+  float nextS = clamp(sPrev + dS * uDeltaTime, 0.0, 1.5);
+
   float rate = (nextV - center) / max(uDeltaTime, 0.0001);
 
-  gl_FragColor = vec4(nextV, rate, nextW, 1.0);
+  gl_FragColor = vec4(nextV, rate, nextW, nextS);
 }
 `;
 
@@ -104,6 +116,13 @@ void main() {
   // "alive" on the first visible frame rather than fading in from a
   // flat, obviously-initialized state.
   float seed = fbm(vec3(vUv * 3.0, 0.0)) * 0.6;
-  gl_FragColor = vec4(seed, 0.0, 0.0, 1.0);
+
+  // S (edad/desgaste) se siembra con ruido de muy baja frecuencia y
+  // sesgado hacia arriba — grandes regiones ya "viejas" y otras ya
+  // "jóvenes" desde el instante cero. No hay frame en el que el
+  // organismo sea simétrico o recién nacido.
+  float ageSeed = clamp(fbm(vec3(vUv * 1.4, 31.0)) * 0.5 + 0.4, 0.0, 1.0);
+
+  gl_FragColor = vec4(seed, 0.0, 0.0, ageSeed);
 }
 `;

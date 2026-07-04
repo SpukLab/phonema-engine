@@ -27,6 +27,13 @@ export interface SimulationParams {
    *  cyclical regime. Verified numerically (tools/fhn_check.py) before
    *  being set here — values were not guessed. */
   wCoupling: number;
+  /** Growth rate of S (accumulated wear/age) per unit of tension
+   *  experienced. A ratchet, not an oscillator — it only ever grows
+   *  meaningfully, matching "scar," not "cycle." */
+  ageGain: number;
+  /** Decay rate of S. Should be tiny relative to ageGain — history
+   *  should persist far longer than it took to accumulate. */
+  ageDecay: number;
 }
 
 /**
@@ -97,7 +104,9 @@ export class Simulation {
         uThermalNoise: { value: params.thermalNoise },
         uEpsilon: { value: params.epsilon },
         uGamma: { value: params.gamma },
-        uWCoupling: { value: params.wCoupling }
+        uWCoupling: { value: params.wCoupling },
+        uAgeGain: { value: params.ageGain },
+        uAgeDecay: { value: params.ageDecay }
       },
       depthTest: false,
       depthWrite: false
