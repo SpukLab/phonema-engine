@@ -1,0 +1,20 @@
+{
+  "name": "visual-phonema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A real-time cinematic observation engine. Not a music visualizer.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "@types/three": "^0.169.0"
+  }
+}
