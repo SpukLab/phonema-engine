@@ -11,6 +11,9 @@ export class App {
 
   private clock: THREE.Clock;
   private container: HTMLElement;
+  private elapsedTotal = 0;
+
+  private static readonly CAMERA_BASE_Z = 3.6;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -48,17 +51,20 @@ export class App {
     // mean|V| sube y baja varias veces en 90s simulados en vez de decaer
     // monótonamente a una meseta. Esto es lo que produce quietud/tensión/
     // liberación/reorganización emergiendo de la física, no de un guion.
+    // epsilon/gamma/wCoupling recalibrados para Sprint 04: el régimen
+    // anterior (0.06/0.9/1.8) ciclaba cada ~20s — demasiado frecuente
+    // para leerse como "evento", más como respiración continua. Este
+    // régimen (verificado con tools/fhn_check.py sobre 240s simulados)
+    // muestra liberaciones nítidas cada ~42-44s, con tramos largos de
+    // meseta entre medio — más cerca de "quietud aparente, después algo
+    // pasa" que de un ciclo corto y previsible.
     this.simulation = new Simulation(this.renderer, 256, {
       diffusion: 40,
       reactionStrength: 0.35,
       thermalNoise: 0.05,
-      epsilon: 0.06,
-      gamma: 0.9,
-      wCoupling: 1.8,
-      // ageGain/ageDecay: la razón entre ambos importa más que los
-      // valores absolutos. decay << gain para que S sea memoria de
-      // largo plazo, no otro ciclo — una cicatriz tarda en formarse
-      // (gain moderado) y prácticamente no se borra (decay mínimo).
+      epsilon: 0.015,
+      gamma: 0.85,
+      wCoupling: 2.2,
       ageGain: 0.12,
       ageDecay: 0.002
     });
@@ -84,28 +90,62 @@ export class App {
     this.renderer.setAnimationLoop(() => this.tick());
   }
 
-  private tick(): void {
-    const delta = Math.min(this.clock.getDelta(), 1 / 30);
-    const elapsed = this.clock.elapsedTime;
+  private advance(delta: number): void {
+    this.elapsedTotal += delta;
 
     this.simulation.step(delta);
-    this.organism.update(this.simulation.stateTexture, elapsed);
+    this.organism.update(this.simulation.stateTexture, this.elapsedTotal);
 
     // Deriva autónoma extremadamente lenta — nunca espectacular. Las tres
     // frecuencias son deliberadamente no conmensurables entre sí (no hay
     // relación de números pequeños) para que, aun mirando varios minutos,
     // no se perciba un ciclo repetitivo. Períodos ~9-16 minutos: dentro
     // del primer minuto el movimiento debe sentirse casi quieto, no un pan.
-    const driftX = Math.sin(elapsed * 0.0091) * 0.16;
-    const driftY = Math.cos(elapsed * 0.0134) * 0.11;
-    const dolly = Math.sin(elapsed * 0.0053) * 0.18;
+    const driftX = Math.sin(this.elapsedTotal * 0.0091) * 0.16;
+    const driftY = Math.cos(this.elapsedTotal * 0.0134) * 0.11;
+    const dolly = Math.sin(this.elapsedTotal * 0.0053) * 0.18;
 
     this.camera.position.x = driftX;
     this.camera.position.y = driftY;
-    this.camera.position.z = 3.6 + dolly;
+    this.camera.position.z = App.CAMERA_BASE_Z + dolly;
     this.camera.lookAt(0, 0, 0);
+  }
 
+  private tick(): void {
+    const delta = Math.min(this.clock.getDelta(), 1 / 30);
+    this.advance(delta);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Evaluation Mode: avanza la simulación de forma determinística (dt fijo,
+   * no ligado al reloj real) hasta `targetSeconds` de tiempo simulado, y
+   * renderiza un frame final. Usado por tools/evaluate.mjs para producir
+   * capturas reproducibles en t=0/30/60/180s sin depender de tiempo real
+   * de pared ni de la cadencia de requestAnimationFrame.
+   */
+  advanceDeterministic(targetSeconds: number, fixedDt = 1 / 60): void {
+    while (this.elapsedTotal < targetSeconds) {
+      const step = Math.min(fixedDt, targetSeconds - this.elapsedTotal);
+      this.advance(step);
+    }
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  getEvaluationSnapshot(): Record<string, unknown> {
+    return {
+      elapsedSeconds: this.elapsedTotal,
+      camera: {
+        fov: this.camera.fov,
+        position: this.camera.position.toArray(),
+        aspect: this.camera.aspect
+      },
+      simulationStats: this.simulation.readStats()
+    };
+  }
+
+  get domElement(): HTMLCanvasElement {
+    return this.renderer.domElement;
   }
 
   dispose(): void {

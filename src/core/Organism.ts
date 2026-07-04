@@ -22,7 +22,7 @@ export class Organism {
         // Desgaste (S) siempre resta — colapsa hacia adentro. Es lo que
         // rompe la silueta esférica con comportamiento acumulado, no
         // con una capa de ruido más.
-        uAgeDisplacementScale: { value: 0.24 },
+        uAgeDisplacementScale: { value: 0.30 },
         // Fixed spatial warp — shared scale between vertex/fragment,
         // independent strengths and seeds per use so displacement,
         // color, and activity never trace the same boundary curve.
@@ -53,7 +53,7 @@ export class Organism {
         uTensionSubsurfaceGain: { value: 0.35 },
         // Subsurface translucency — reads as thickness, not a shell.
         uSubsurfaceColor: { value: new THREE.Color(0x3a2418) },
-        uSubsurfaceStrength: { value: 0.12 },
+        uSubsurfaceStrength: { value: 0.08 },
         // Pátina: manchas fijas, muy baja frecuencia — óxido/liquen.
         uPatinaColor: { value: new THREE.Color(0x3e4433) },
         uPatinaStrength: { value: 0.35 },

@@ -5,6 +5,75 @@ El resultado se evalúa mirando, no leyendo código.
 
 ---
 
+## Sprint 04 — "La Primera Revelación"
+
+**Estado: PENDING ART REVIEW** (ver sección final — no es un tecnicismo, es una regla que pediste explícitamente)
+
+**Build en vivo:** https://spuklab.github.io/phonema-engine/
+**Cómo correrlo local:** `npm install && npm run dev`
+
+### Objetivo
+
+Que el organismo pase largos períodos en aparente quietud y, sin ninguna
+animación programada, algo se reorganice — que el espectador sienta
+"algo acaba de pasar", emergiendo únicamente del estado físico interno.
+
+### Qué cambió
+
+- **Recalibración del ciclo tensión/liberación**: el régimen anterior
+  ciclaba cada ~20s — demasiado frecuente para leerse como "evento",
+  más como respiración continua. Verificado numéricamente sobre 240s
+  simulados (`tools/fhn_check.py`), el nuevo régimen
+  (`epsilon:0.015, gamma:0.85, wCoupling:2.2`) muestra liberaciones
+  nítidas cada ~42-44s, con tramos largos de meseta entre medio.
+- **Luz más oscura**: rim de 0.15→0.10, brillo subsuperficial base de
+  0.12→0.08. Menos "gratis" para compensar la penumbra.
+- **Más ruptura de silueta por historia**: `uAgeDisplacementScale` de
+  0.24→0.30.
+- **Evaluation Mode real**, implementado en el motor mismo (no un script
+  aparte que simula el render):
+  - `Simulation.readStats()` lee el estado real desde la GPU
+    (`readRenderTargetPixels`) — promedio y varianza de V, W, S.
+  - `App.advanceDeterministic(segundos)` avanza la simulación con paso
+    fijo, sin depender del reloj real — reproducible en cualquier
+    máquina.
+  - `?eval=1` en la URL expone `window.__phonema` con `advanceTo()`,
+    `getSnapshot()` y el canvas — sin ningún costo en el uso normal.
+  - `tools/evaluate.mjs` (Playwright) navega con el renderer real,
+    avanza a t=0/30/60/180s, captura PNG real, y calcula métricas de
+    píxeles reales (ocupación en pantalla, histograma de luminancia,
+    % de superficie en sombra) directamente sobre la captura.
+
+### Por qué el estado es PENDING ART REVIEW, no COMPLETE
+
+No pude ejecutar `tools/evaluate.mjs` yo mismo. Intenté instalar el
+navegador headless que Playwright necesita
+(`npx playwright install chromium`) y la descarga falló porque
+`cdn.playwright.dev` no está en la lista de dominios que mi entorno de
+trabajo tiene permitido alcanzar — la misma restricción de red que ya
+había encontrado con Puppeteer y con Chromium por apt/snap en sprints
+anteriores. El código existe, compila, y debería funcionar en tu
+máquina sin restricciones de red. Pero no generé las imágenes ni el
+`review.json`, y por eso este sprint no está completo bajo tu propia
+regla.
+
+### Lo que necesito de vos para cerrar este sprint
+
+```
+npm install
+npx playwright install chromium
+npm run build
+npx serve dist -p 4173 &
+npm run evaluate -- http://localhost:4173
+```
+
+Eso debería generar `evaluation/Frame_000.png`, `Frame_030.png`,
+`Frame_060.png`, `Frame_180.png` y `evaluation/review.json`. Subime esos
+archivos y ahí sí escribo el ART REVIEW basado únicamente en lo que
+esas imágenes muestran — no antes.
+
+---
+
 ## Sprint 03 — "Historia Geológica"
 
 **Build en vivo:** https://spuklab.github.io/phonema-engine/

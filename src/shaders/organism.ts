@@ -240,7 +240,7 @@ void main() {
 
   vec3 diffuse = albedo * uKeyLightColor * NdotL * aoFactor;
   vec3 fill = albedo * uFillColor * (1.0 - NdotL) * 0.12 * aoFactor;
-  vec3 rim = uKeyLightColor * fresnel * 0.15;
+  vec3 rim = uKeyLightColor * fresnel * 0.10;
   vec3 specular = uKeyLightColor * spec;
 
   // Subsurface translucency: a faint glow on the side away from the key

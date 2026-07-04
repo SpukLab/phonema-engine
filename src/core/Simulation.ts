@@ -165,6 +165,61 @@ export class Simulation {
     return this.readTarget.texture;
   }
 
+  /**
+   * Lee el estado real desde la GPU (no una aproximación) y devuelve
+   * estadísticas del campo. Usado por Evaluation Mode para review.json.
+   * Costoso (readback síncrono) — solo se llama en modo evaluación,
+   * nunca en el loop de render normal.
+   */
+  readStats(): {
+    meanAbsV: number;
+    varianceV: number;
+    meanAbsW: number;
+    meanAge: number;
+    maxDisplacementProxy: number;
+  } {
+    const n = this.resolution * this.resolution;
+    const pixels = new Float32Array(n * 4);
+    this.renderer.readRenderTargetPixels(
+      this.readTarget,
+      0,
+      0,
+      this.resolution,
+      this.resolution,
+      pixels
+    );
+
+    let sumAbsV = 0;
+    let sumV = 0;
+    let sumV2 = 0;
+    let sumAbsW = 0;
+    let sumAge = 0;
+    let maxAbsV = 0;
+
+    for (let i = 0; i < n; i++) {
+      const v = pixels[i * 4 + 0];
+      const w = pixels[i * 4 + 2];
+      const s = pixels[i * 4 + 3];
+      sumAbsV += Math.abs(v);
+      sumV += v;
+      sumV2 += v * v;
+      sumAbsW += Math.abs(w);
+      sumAge += s;
+      if (Math.abs(v) > maxAbsV) maxAbsV = Math.abs(v);
+    }
+
+    const meanV = sumV / n;
+    const varianceV = sumV2 / n - meanV * meanV;
+
+    return {
+      meanAbsV: sumAbsV / n,
+      varianceV,
+      meanAbsW: sumAbsW / n,
+      meanAge: sumAge / n,
+      maxDisplacementProxy: maxAbsV
+    };
+  }
+
   dispose(): void {
     this.targetA.dispose();
     this.targetB.dispose();
