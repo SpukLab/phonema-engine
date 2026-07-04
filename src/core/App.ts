@@ -42,10 +42,19 @@ export class App {
     // sostiene variedad visible mucho más tiempo sin perder el requisito
     // de "sigue vivo con casi nada de ruido". diffusion=40 recalcula el
     // ancho de pared a ~0.042 en unidades UV (sqrt(diffusion*texel^2/reaction)).
+    //
+    // epsilon/gamma/wCoupling: acoplamiento tipo FitzHugh-Nagumo verificado
+    // con tools/fhn_check.py (estadística temporal real, no estética) —
+    // mean|V| sube y baja varias veces en 90s simulados en vez de decaer
+    // monótonamente a una meseta. Esto es lo que produce quietud/tensión/
+    // liberación/reorganización emergiendo de la física, no de un guion.
     this.simulation = new Simulation(this.renderer, 256, {
       diffusion: 40,
       reactionStrength: 0.35,
-      thermalNoise: 0.05
+      thermalNoise: 0.05,
+      epsilon: 0.06,
+      gamma: 0.9,
+      wCoupling: 1.8
     });
 
     this.organism = new Organism(this.simulation.stateTexture);
@@ -76,10 +85,18 @@ export class App {
     this.simulation.step(delta);
     this.organism.update(this.simulation.stateTexture, elapsed);
 
-    // Slow autonomous drift — an observation posture, not a user control.
-    // No orbit controls: nothing about this project is interactive yet.
-    this.camera.position.x = Math.sin(elapsed * 0.05) * 0.3;
-    this.camera.position.y = Math.cos(elapsed * 0.04) * 0.2;
+    // Deriva autónoma extremadamente lenta — nunca espectacular. Las tres
+    // frecuencias son deliberadamente no conmensurables entre sí (no hay
+    // relación de números pequeños) para que, aun mirando varios minutos,
+    // no se perciba un ciclo repetitivo. Períodos ~9-16 minutos: dentro
+    // del primer minuto el movimiento debe sentirse casi quieto, no un pan.
+    const driftX = Math.sin(elapsed * 0.0091) * 0.16;
+    const driftY = Math.cos(elapsed * 0.0134) * 0.11;
+    const dolly = Math.sin(elapsed * 0.0053) * 0.18;
+
+    this.camera.position.x = driftX;
+    this.camera.position.y = driftY;
+    this.camera.position.z = 4.2 + dolly;
     this.camera.lookAt(0, 0, 0);
 
     this.renderer.render(this.scene, this.camera);

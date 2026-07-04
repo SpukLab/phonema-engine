@@ -16,6 +16,17 @@ export interface SimulationParams {
   /** Small thermal perturbation. Should be an order of magnitude below
    *  reactionStrength; its removal should change texture, not behavior. */
   thermalNoise: number;
+  /** Timescale of the recovery variable W relative to V. Small = W moves
+   *  much slower than V, which is what separates "tension building" from
+   *  "release" into two visibly different paces. */
+  epsilon: number;
+  /** Target ratio W settles toward relative to V at quasi-equilibrium. */
+  gamma: number;
+  /** How strongly accumulated W suppresses V's reaction. This is the
+   *  actual coupling that turns pure bistability into an excitable,
+   *  cyclical regime. Verified numerically (tools/fhn_check.py) before
+   *  being set here — values were not guessed. */
+  wCoupling: number;
 }
 
 /**
@@ -83,7 +94,10 @@ export class Simulation {
         uDeltaTime: { value: 0 },
         uDiffusion: { value: params.diffusion },
         uReactionStrength: { value: params.reactionStrength },
-        uThermalNoise: { value: params.thermalNoise }
+        uThermalNoise: { value: params.thermalNoise },
+        uEpsilon: { value: params.epsilon },
+        uGamma: { value: params.gamma },
+        uWCoupling: { value: params.wCoupling }
       },
       depthTest: false,
       depthWrite: false

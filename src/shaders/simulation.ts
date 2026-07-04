@@ -9,9 +9,15 @@ void main() {
 `;
 
 // State channel layout (RGBA16F):
-//   r = scalar field value (the organism's internal quantity)
-//   g = local rate of change (used by the renderer for shading emphasis)
-// b, a unused — reserved, not fabricated.
+//   r = V — campo rápido (la forma visible, igual que antes)
+//   g = tasa de cambio de V (usada para el brillo de actividad)
+//   b = W — variable de recuperación lenta (tipo FitzHugh-Nagumo).
+//       W se integra a partir de V y a su vez inhibe la reacción de V.
+//       Esto es lo que produce quietud → tensión → liberación →
+//       reorganización de forma emergente, verificado numéricamente
+//       (tools/fhn_check.py) antes de escribirse aquí: sin W, el campo
+//       biestable puro solo decae monótonamente hacia una meseta.
+// a = sin usar.
 export const SIMULATION_FRAGMENT = /* glsl */ `
 precision highp float;
 
@@ -22,6 +28,9 @@ uniform float uDeltaTime;
 uniform float uDiffusion;
 uniform float uReactionStrength;
 uniform float uThermalNoise;
+uniform float uEpsilon;
+uniform float uGamma;
+uniform float uWCoupling;
 
 varying vec2 vUv;
 
@@ -38,7 +47,10 @@ void main() {
   float yD = clamp(vUv.y - texel.y, 0.0, 1.0);
   float yU = clamp(vUv.y + texel.y, 0.0, 1.0);
 
-  float center = texture2D(uPrevState, vUv).r;
+  vec4 prevCenter = texture2D(uPrevState, vUv);
+  float center = prevCenter.r;
+  float wPrev = prevCenter.b;
+
   float left   = texture2D(uPrevState, vec2(xL, vUv.y)).r;
   float right  = texture2D(uPrevState, vec2(xR, vUv.y)).r;
   float down   = texture2D(uPrevState, vec2(vUv.x, yD)).r;
@@ -46,12 +58,11 @@ void main() {
 
   float laplacian = (left + right + up + down - 4.0 * center);
 
-  // Bistable self-interaction (Allen-Cahn form): the field is pulled
-  // toward two stable states (+1 / -1). This alone — with zero noise —
-  // produces domain formation and slow, curvature-driven coarsening as
-  // domain walls migrate and merge. This is the primary source of
-  // motion. It is deterministic and would run forever without noise.
-  float reaction = center - center * center * center;
+  // Bistable self-interaction, ahora inhibido por W: cuando W crece
+  // (tensión acumulada), suprime la reacción hasta que V cede (liberación).
+  // W decae lento después, permitiendo que la tensión vuelva a construirse
+  // en otro punto — reorganización, no repetición.
+  float reaction = center - center * center * center - uWCoupling * wPrev;
 
   // Thermal fluctuation: a tiny, slowly-drifting perturbation. Its only
   // job is to seed nucleation and prevent the field from ever fully
@@ -61,16 +72,23 @@ void main() {
   float thermal = fbm(noiseCoord);
 
   float dV = uDiffusion * laplacian + uReactionStrength * reaction + uThermalNoise * thermal;
-  float next = center + dV * uDeltaTime;
+  float nextV = center + dV * uDeltaTime;
 
   // Numerical safety net only — not a shaping tool. The reaction term
   // is what keeps the field near [-1, 1]; this just guards against
   // transient overshoot from explicit integration.
-  next = clamp(next, -1.5, 1.5);
+  nextV = clamp(nextV, -1.5, 1.5);
 
-  float rate = (next - center) / max(uDeltaTime, 0.0001);
+  // W integra V (viejo, no el ya actualizado) hacia gamma*W, en una
+  // escala de tiempo mucho más lenta que V (uEpsilon pequeño). Esta
+  // separación de escalas temporales es lo que produce tensión que
+  // se acumula lento y se libera rápido, no un parpadeo simétrico.
+  float dW = uEpsilon * (center - uGamma * wPrev);
+  float nextW = clamp(wPrev + dW * uDeltaTime, -2.0, 2.0);
 
-  gl_FragColor = vec4(next, rate, 0.0, 1.0);
+  float rate = (nextV - center) / max(uDeltaTime, 0.0001);
+
+  gl_FragColor = vec4(nextV, rate, nextW, 1.0);
 }
 `;
 
