@@ -1,1 +1,0 @@
-{"root":["./src/main.ts","./src/core/App.ts","./src/core/Organism.ts","./src/core/Simulation.ts","./src/shaders/noise.ts","./src/shaders/organism.ts","./src/shaders/simulation.ts"],"version":"5.9.3"}

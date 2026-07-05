@@ -123,12 +123,22 @@ export class App {
    * renderiza un frame final. Usado por tools/evaluate.mjs para producir
    * capturas reproducibles en t=0/30/60/180s sin depender de tiempo real
    * de pared ni de la cadencia de requestAnimationFrame.
+   *
+   * Reduce temporalmente los sub-pasos de difusión (16→6) durante el
+   * avance: bajo software rendering (Chromium headless sin GPU), cada
+   * sub-paso es una llamada de dibujo cara, y 172.800 de ellas para
+   * llegar a t=180s tardaban ~20 minutos reales. A 6 sub-pasos el margen
+   * de estabilidad para diffusion=40 sigue siendo ~2.25x — no es un
+   * atajo que arriesgue la física, es evitar pagar precisión que la
+   * inspección visual/estadística no necesita.
    */
   advanceDeterministic(targetSeconds: number, fixedDt = 1 / 60): void {
+    this.simulation.setSubsteps(6);
     while (this.elapsedTotal < targetSeconds) {
       const step = Math.min(fixedDt, targetSeconds - this.elapsedTotal);
       this.advance(step);
     }
+    this.simulation.setSubsteps(16);
     this.renderer.render(this.scene, this.camera);
   }
 

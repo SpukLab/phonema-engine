@@ -62,7 +62,12 @@ export class Simulation {
   // large for one explicit-Euler step per frame to stay stable. Substepping
   // lets the field integrate accurately without raising the frame rate
   // or shrinking the pattern scale. Pure loop, no new subsystem.
-  private static readonly SUBSTEPS = 16;
+  //
+  // No es una const fija: Evaluation Mode la reduce temporalmente para
+  // no pagar 172.800 draw calls bajo software rendering. El margen de
+  // estabilidad a diffusion=40 sigue siendo amplio incluso en 6 (ver
+  // App.advanceDeterministic).
+  private substeps = 16;
 
   constructor(
     renderer: THREE.WebGLRenderer,
@@ -142,9 +147,9 @@ export class Simulation {
   }
 
   step(deltaTime: number): void {
-    const subDt = deltaTime / Simulation.SUBSTEPS;
+    const subDt = deltaTime / this.substeps;
 
-    for (let i = 0; i < Simulation.SUBSTEPS; i++) {
+    for (let i = 0; i < this.substeps; i++) {
       this.elapsed += subDt;
 
       this.material.uniforms.uPrevState.value = this.readTarget.texture;
@@ -161,8 +166,32 @@ export class Simulation {
     }
   }
 
+  setSubsteps(n: number): void {
+    this.substeps = n;
+  }
+
   get stateTexture(): THREE.Texture {
     return this.readTarget.texture;
+  }
+
+  /**
+   * Decodifica un half-float (IEEE 754 binary16) almacenado como uint16
+   * a un número JS normal. Necesario porque WebGL exige leer un render
+   * target HalfFloatType con un Uint16Array — pedir un Float32Array
+   * (lo que hacía antes) produce un WARNING silencioso de WebGL, no una
+   * excepción, y el buffer queda en ceros sin que nada lo señale.
+   */
+  private static halfToFloat(h: number): number {
+    const sign = (h & 0x8000) >> 15;
+    const exponent = (h & 0x7c00) >> 10;
+    const fraction = h & 0x03ff;
+
+    if (exponent === 0) {
+      return (sign ? -1 : 1) * Math.pow(2, -14) * (fraction / 1024);
+    } else if (exponent === 0x1f) {
+      return fraction ? NaN : (sign ? -Infinity : Infinity);
+    }
+    return (sign ? -1 : 1) * Math.pow(2, exponent - 15) * (1 + fraction / 1024);
   }
 
   /**
@@ -179,7 +208,7 @@ export class Simulation {
     maxDisplacementProxy: number;
   } {
     const n = this.resolution * this.resolution;
-    const pixels = new Float32Array(n * 4);
+    const pixels = new Uint16Array(n * 4);
     this.renderer.readRenderTargetPixels(
       this.readTarget,
       0,
@@ -197,9 +226,9 @@ export class Simulation {
     let maxAbsV = 0;
 
     for (let i = 0; i < n; i++) {
-      const v = pixels[i * 4 + 0];
-      const w = pixels[i * 4 + 2];
-      const s = pixels[i * 4 + 3];
+      const v = Simulation.halfToFloat(pixels[i * 4 + 0]);
+      const w = Simulation.halfToFloat(pixels[i * 4 + 2]);
+      const s = Simulation.halfToFloat(pixels[i * 4 + 3]);
       sumAbsV += Math.abs(v);
       sumV += v;
       sumV2 += v * v;
