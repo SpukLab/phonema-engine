@@ -35,10 +35,51 @@ async function main() {
 
   mkdirSync(OUT_DIR, { recursive: true });
 
-  const browser = await chromium.launch();
+  // Chromium headless, sin estos flags, muchas veces no expone un
+  // contexto WebGL utilizable (ni GPU real ni software fallback). Esa
+  // es la causa más probable de un canvas en blanco — no algo que se
+  // pueda diagnosticar solo mirando la captura final.
+  const browser = await chromium.launch({
+    args: [
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+      "--enable-unsafe-swiftshader"
+    ]
+  });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
+  // Diagnóstico real: si algo falla, queremos verlo en la consola, no
+  // adivinarlo después mirando un PNG en blanco.
+  page.on("console", (msg) => console.log(`[browser:${msg.type()}]`, msg.text()));
+  page.on("pageerror", (err) => console.error("[pageerror]", err));
+  page.on("requestfailed", (req) =>
+    console.error("[requestfailed]", req.url(), req.failure()?.errorText)
+  );
+
   await page.goto(`${baseUrl}?eval=1`, { waitUntil: "networkidle" });
+
+  // Verificación explícita de que estamos parados sobre la app real y
+  // no sobre una página de error en blanco, antes de asumir cualquier cosa.
+  const pageCheck = await page.evaluate(() => ({
+    title: document.title,
+    url: window.location.href,
+    hasCanvas: !!document.querySelector("canvas"),
+    bodyBg: getComputedStyle(document.body).backgroundColor,
+    webgl2Available: !!document.createElement("canvas").getContext("webgl2")
+  }));
+  console.log("Verificación de página:", pageCheck);
+
+  if (!pageCheck.hasCanvas || !pageCheck.webgl2Available) {
+    console.error(
+      "ABORTANDO: no hay canvas o WebGL2 no está disponible en este navegador headless. " +
+      "Las capturas siguientes no serían válidas para revisión."
+    );
+    await browser.close();
+    process.exit(1);
+  }
+
   await page.waitForFunction(() => !!(window).__phonema, { timeout: 15000 });
 
   const frames = [];
@@ -74,6 +115,18 @@ async function main() {
     renderer: "Three.js WebGL2 real (Playwright/Chromium headless)",
     frames
   };
+
+  // Chequeo automático del fallo que ya vimos una vez: si todos los
+  // frames tienen exactamente la misma ocupación en pantalla y
+  // luminancia promedio, probablemente el canvas nunca dibujó nada.
+  const occupations = frames.map((f) => f.pixelMetrics.screenOccupationPct);
+  const allIdentical = occupations.every((o) => o === occupations[0]);
+  if (allIdentical) {
+    review.warning =
+      "Todos los frames tienen la misma ocupación en pantalla — probablemente " +
+      "el canvas no renderizó nada real. No usar estas imágenes para el ART REVIEW.";
+    console.error("ADVERTENCIA:", review.warning);
+  }
 
   writeFileSync(path.join(OUT_DIR, "review.json"), JSON.stringify(review, null, 2));
   console.log("review.json generado en", path.join(OUT_DIR, "review.json"));
