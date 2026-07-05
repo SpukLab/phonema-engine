@@ -16,9 +16,11 @@ export class App {
   private elapsedTotal = 0;
 
   private static readonly CAMERA_BASE_Z = 3.6;
+  private revelationEnabled: boolean;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, config: { revelationEnabled?: boolean } = {}) {
     this.container = container;
+    this.revelationEnabled = config.revelationEnabled ?? true;
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -114,15 +116,21 @@ export class App {
     // La convención de UV del icosaedro de three.js es aproximadamente
     // equirectangular — esto es una inversión aproximada, suficiente
     // para una inclinación sutil, no para precisión geométrica.
-    const longitude = (this.sensor.peakUV.x - 0.5) * Math.PI * 2;
-    const latitude = (0.5 - this.sensor.peakUV.y) * Math.PI;
-    const peakDirection = new THREE.Vector3(
-      Math.cos(latitude) * Math.cos(longitude),
-      Math.sin(latitude),
-      Math.cos(latitude) * Math.sin(longitude)
-    );
+    let peakDirection: THREE.Vector3 | undefined;
+    let heterogeneity = 0;
 
-    this.organism.update(this.simulation.stateTexture, this.elapsedTotal, peakDirection, this.sensor.heterogeneity);
+    if (this.revelationEnabled) {
+      const longitude = (this.sensor.peakUV.x - 0.5) * Math.PI * 2;
+      const latitude = (0.5 - this.sensor.peakUV.y) * Math.PI;
+      peakDirection = new THREE.Vector3(
+        Math.cos(latitude) * Math.cos(longitude),
+        Math.sin(latitude),
+        Math.cos(latitude) * Math.sin(longitude)
+      );
+      heterogeneity = this.sensor.heterogeneity;
+    }
+
+    this.organism.update(this.simulation.stateTexture, this.elapsedTotal, peakDirection, heterogeneity);
 
     // Deriva autónoma extremadamente lenta — nunca espectacular. Las tres
     // frecuencias son deliberadamente no conmensurables entre sí (no hay
@@ -137,8 +145,10 @@ export class App {
     // heterogeneidad detectada sube — nunca reemplaza la deriva autónoma,
     // solo la modula. El factor de normalización (30) es una primera
     // aproximación sin calibrar contra el organismo corriendo en vivo;
-    // necesita verse antes de confiar en el número.
-    const revealPush = THREE.MathUtils.clamp(this.sensor.heterogeneity * 30, 0, 1);
+    // necesita verse antes de confiar en el número. Con revelationEnabled
+    // en false, heterogeneity queda en 0 y este término desaparece —
+    // comportamiento idéntico al Sprint 04.
+    const revealPush = THREE.MathUtils.clamp(heterogeneity * 30, 0, 1);
     const revealZoom = -0.04 * revealPush * App.CAMERA_BASE_Z;
 
     this.camera.position.x = driftX;

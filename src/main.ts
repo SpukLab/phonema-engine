@@ -5,9 +5,17 @@ if (!container) {
   throw new Error("Missing #app container in index.html");
 }
 
-const app = new App(container);
+const params = new URLSearchParams(window.location.search);
 
-const isEvaluationMode = new URLSearchParams(window.location.search).has("eval");
+// Toggle A/B para el experimento pedido tras Sprint 05: correr la misma
+// física con y sin el sesgo de cámara/luz del RevelationSensor, y
+// comparar. No es una característica creativa nueva — es la
+// infraestructura mínima sin la cual ese experimento es imposible.
+const revelationEnabled = params.get("revelation") !== "off";
+
+const app = new App(container, { revelationEnabled });
+
+const isEvaluationMode = params.has("eval");
 
 if (isEvaluationMode) {
   // No arranca el loop de animación en tiempo real: Evaluation Mode

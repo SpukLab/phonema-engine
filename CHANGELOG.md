@@ -87,6 +87,29 @@ en vivo. No tengo forma de saber si 30 es el número correcto sin verlo —
 puede que el acercamiento sea imperceptible, o exagerado. Es lo primero
 que ajustaría con tu observación.
 
+### Experimento A/B (agregado — el único pedido para este cierre de sprint)
+
+Se agregó un toggle (`?revelation=off`) para poder correr exactamente la
+misma física con y sin el sesgo de cámara/luz del sensor, y comparar. Sin
+esto, la pregunta "¿el organismo parece más interesante porque el
+observador cambió, aun con la física idéntica?" es imposible de responder
+con evidencia.
+
+Correlo así:
+
+```
+npm run build
+npx serve dist -p 4173 &
+sleep 2
+npm run evaluate -- "http://localhost:4173" with-revelation
+npm run evaluate -- "http://localhost:4173?revelation=off" without-revelation
+```
+
+Esto genera `evaluation/with-revelation/` y `evaluation/without-revelation/`,
+cada una con sus 9 frames y su `review.json`. Subime ambas carpetas
+completas y la Narrative Review de cada una (mirando el organismo correr,
+no las capturas sueltas) — con eso hago la comparación real, no antes.
+
 ---
 
 ## Sprint 04 — "La Primera Revelación"

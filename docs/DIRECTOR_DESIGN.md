@@ -10,6 +10,84 @@ Analogía de trabajo: el Director es a este proyecto lo que un director de docum
 
 Invariante de arquitectura: **el Director nunca escribe estado**. Solo escribe parámetros de contexto que otros sistemas (Simulation, Camera, Lighting) ya exponen como sus propios ajustes internos. Si el Director necesitara tocar algo que ese sistema no expone todavía, la solución es agregarle ese parámetro al sistema — nunca que el Director lo alcance por atrás.
 
+## 0.1. La Constitución (agregado tras Sprint 05)
+
+Todo sistema que en el futuro observe al organismo — audio, micrófonos,
+sensores, un scheduler, público, temperatura, OSC, MIDI, lo que sea —
+debe seguir exactamente este flujo:
+
+```
+Observan
+  ↓
+Interpretan
+  ↓
+Revelan
+```
+
+Nunca esto:
+
+```
+Observan
+  ↓
+Modifican directamente la física
+```
+
+Ningún sistema de observación escribe jamás al estado interno de
+Simulation. Esto no es una preferencia de estilo — es la única garantía
+de que el organismo sigue siendo autónomo a medida que se le agregan
+más y más sentidos. El día que el audio pueda escribir `uReactionStrength`
+directamente, dejamos de tener un organismo observado y pasamos a tener
+un instrumento controlado por MIDI con forma de organismo. Esa distinción
+es el proyecto entero.
+
+## 0.2. Curiosity Engine (concepto futuro — NO implementar sin pedido explícito)
+
+El `RevelationSensor` (Sprint 05) es **reactivo**: detecta heterogeneidad
+ahora y responde ahora. Un director de fotografía real muchas veces hace
+lo contrario — presiente que algo va a pasar y empieza a prepararse antes.
+Eso genera expectativa, no sorpresa, y la expectativa sostiene la atención
+más tiempo que la sorpresa.
+
+Concepto: un Curiosity Engine observaría *tendencias* (heterogeneidad
+subiendo, no solo su valor actual; gradientes; aceleración local de la
+tensión) y concluiría algo como "probablemente en ~20s pase algo" —
+sin conocer el futuro, sólo extrapolando. Con esa sospecha empezaría a:
+acercar la cámara muy levemente, oscurecer una región, desplazar la luz
+apenas, preparar el encuadre — todo antes de que la reorganización ocurra,
+no después.
+
+Esto sigue siendo Observan → Interpretan → Revelan — solo que la
+interpretación usa la *derivada* de las señales, no su valor instantáneo.
+No cambia la constitución. No se implementa todavía.
+
+## 0.3. Separación en cuatro capas (dirección futura, no una refactorización pendiente)
+
+Hoy `RevelationSensor` mezcla observación e interpretación en una sola
+clase (lee el campo y ya decide qué significa). A largo plazo conviene
+separarlas:
+
+```
+Simulation
+    │
+    ▼
+Observation      (lee el campo crudo — nunca decide nada)
+    │
+    ▼
+Interpretation   (nacimiento, cicatriz, calma, tensión, migración,
+    │             cristalización — nombra lo que Observation vio)
+    ▼
+Direction        (decide cómo reaccionar: Director, Curiosity Engine,
+    │             lo que exista)
+    ▼
+Camera / Light
+```
+
+La ventaja de separar Observation de Interpretation: el día de mañana se
+puede agregar un nuevo detector (ej. "esto es una cicatrización", "esto
+es una migración") sin tocar una sola línea de cómo cámara o luz
+reaccionan. Hoy no hace falta — un solo sensor alcanza. Se documenta acá
+para cuando haga falta, no antes.
+
 ---
 
 ## 1. Responsabilidades

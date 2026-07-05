@@ -24,15 +24,19 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const TARGET_TIMES = [0, 15, 30, 45, 60, 90, 120, 150, 180];
-const OUT_DIR = path.resolve("evaluation");
 
 async function main() {
   const baseUrl = process.argv[2];
+  const label = process.argv[3] || "run";
   if (!baseUrl) {
-    console.error("Uso: node tools/evaluate.mjs <url-del-dist-servido>");
+    console.error("Uso: node tools/evaluate.mjs <url> [label]");
+    console.error("Ejemplo experimento A/B (Sprint 05):");
+    console.error('  node tools/evaluate.mjs "http://localhost:4173" with-revelation');
+    console.error('  node tools/evaluate.mjs "http://localhost:4173?revelation=off" without-revelation');
     process.exit(1);
   }
 
+  const OUT_DIR = path.resolve("evaluation", label);
   mkdirSync(OUT_DIR, { recursive: true });
 
   // Chromium headless, sin estos flags, muchas veces no expone un
@@ -65,7 +69,9 @@ async function main() {
     console.error("[requestfailed]", req.url(), req.failure()?.errorText)
   );
 
-  await page.goto(`${baseUrl}?eval=1`, { waitUntil: "networkidle" });
+  const evalUrl = new URL(baseUrl);
+  evalUrl.searchParams.set("eval", "1");
+  await page.goto(evalUrl.toString(), { waitUntil: "networkidle" });
 
   // Verificación explícita de que estamos parados sobre la app real y
   // no sobre una página de error en blanco, antes de asumir cualquier cosa.
@@ -125,6 +131,8 @@ async function main() {
   const review = {
     generatedAt: new Date().toISOString(),
     renderer: "Three.js WebGL2 real (Playwright/Chromium headless)",
+    label,
+    url: evalUrl.toString(),
     frames
   };
 
