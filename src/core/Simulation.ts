@@ -4,6 +4,7 @@ import {
   SIMULATION_FRAGMENT,
   SIMULATION_INIT_FRAGMENT
 } from "../shaders/simulation";
+import { halfToFloat } from "./halfFloat";
 
 export interface SimulationParams {
   /** Domain-wall width ~ sqrt(diffusion / reactionStrength). Small values
@@ -175,26 +176,6 @@ export class Simulation {
   }
 
   /**
-   * Decodifica un half-float (IEEE 754 binary16) almacenado como uint16
-   * a un número JS normal. Necesario porque WebGL exige leer un render
-   * target HalfFloatType con un Uint16Array — pedir un Float32Array
-   * (lo que hacía antes) produce un WARNING silencioso de WebGL, no una
-   * excepción, y el buffer queda en ceros sin que nada lo señale.
-   */
-  private static halfToFloat(h: number): number {
-    const sign = (h & 0x8000) >> 15;
-    const exponent = (h & 0x7c00) >> 10;
-    const fraction = h & 0x03ff;
-
-    if (exponent === 0) {
-      return (sign ? -1 : 1) * Math.pow(2, -14) * (fraction / 1024);
-    } else if (exponent === 0x1f) {
-      return fraction ? NaN : (sign ? -Infinity : Infinity);
-    }
-    return (sign ? -1 : 1) * Math.pow(2, exponent - 15) * (1 + fraction / 1024);
-  }
-
-  /**
    * Lee el estado real desde la GPU (no una aproximación) y devuelve
    * estadísticas del campo. Usado por Evaluation Mode para review.json.
    * Costoso (readback síncrono) — solo se llama en modo evaluación,
@@ -226,9 +207,9 @@ export class Simulation {
     let maxAbsV = 0;
 
     for (let i = 0; i < n; i++) {
-      const v = Simulation.halfToFloat(pixels[i * 4 + 0]);
-      const w = Simulation.halfToFloat(pixels[i * 4 + 2]);
-      const s = Simulation.halfToFloat(pixels[i * 4 + 3]);
+      const v = halfToFloat(pixels[i * 4 + 0]);
+      const w = halfToFloat(pixels[i * 4 + 2]);
+      const s = halfToFloat(pixels[i * 4 + 3]);
       sumAbsV += Math.abs(v);
       sumV += v;
       sumV2 += v * v;

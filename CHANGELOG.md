@@ -5,6 +5,90 @@ El resultado se evalúa mirando, no leyendo código.
 
 ---
 
+## Sprint 05 — "Sistema de Revelación"
+
+**Estado: PENDING ART REVIEW** (falta correr Evaluation Mode y completar la Narrative Review de abajo)
+
+**Build en vivo:** https://spuklab.github.io/phonema-engine/
+**Cómo correrlo local:** `npm install && npm run dev`
+
+### Regla nueva adoptada este sprint
+
+Antes de modificar la física (`diffusion`, `reactionStrength`, `thermalNoise`,
+etc.), demostrar que el problema no se resuelve con cámara, luz o puesta en
+escena. Este sprint es esa demostración: el hallazgo del Sprint 04
+(`varianceV` colapsando a ~0 hacia t=180s) no se resolvió tocando la
+ecuación — se lo aborda dándole a cámara y luz información sobre lo que
+ya está pasando en el campo.
+
+### Objetivo
+
+Separar dos preguntas que se estaban confundiendo: "¿el organismo tiene
+estructura interna?" y "¿el espectador percibe un acontecimiento?". No
+son la misma pregunta, y la segunda es la que realmente importa para una
+instalación.
+
+### Qué cambió
+
+- **RevelationSensor** (nuevo, acotado): reduce el campo a una grilla de
+  16×16 en GPU cada frame (barato) y hace un readback a CPU unas pocas
+  veces por segundo (no cada frame). Expone dos señales suavizadas:
+  `heterogeneity` (cuánta variación espacial de actividad hay ahora
+  mismo — el proxy directo del hallazgo de sincronización del Sprint 04)
+  y `peakUV` (dónde está la tensión más alta ahora mismo).
+- **El sensor nunca escribe a la simulación.** Solo lo consumen cámara y
+  luz, y solo como una inclinación sobre su propia deriva autónoma —
+  nunca la reemplazan.
+- Cámara: acercamiento sutil (hasta ~4%) cuando la heterogeneidad detectada
+  sube.
+- Luz: inclinación hacia la región de mayor tensión (hasta 25% de peso),
+  sumada a la deriva lenta que ya tenía, nunca en su lugar.
+- Esto es la implementación parcial y acotada de `docs/DIRECTOR_DESIGN.md`
+  — específicamente las secciones de interacción con Cámara e Iluminación.
+  No se implementó clima sobre la Simulation, ni modos (Instalación/
+  Cinemático) — eso sigue congelado hasta que haga falta.
+- Evaluation Mode ahora muestrea cada 15-30s (9 frames en vez de 4) para
+  poder juzgar mejor si hay un momento identificable de "algo pasó".
+
+### Lo que NO cambié (a propósito)
+
+`diffusion=40`, `reactionStrength=0.35`, `thermalNoise=0.05`,
+`epsilon=0.015`, `gamma=0.85`, `wCoupling=2.2` — exactamente iguales al
+Sprint 04. Si la sincronización espacial (`varianceV`→0) sigue pasando,
+va a seguir pasando — este sprint no la resuelve, prueba si la *percepción*
+de acontecimiento se puede lograr sin resolverla primero.
+
+### Narrative Review (completar mirando el organismo correr, no las capturas sueltas)
+
+```
+¿Pasó algo?                                    SI / NO
+
+¿Un espectador podría describir
+un antes y un después?                         SI / NO
+
+Cambio percibido máximo:                       0-10
+
+Momentos de atención:
+  t = ___
+  t = ___
+  t = ___
+
+¿La imagen invita a seguir observando?         SI / NO
+
+Tiempo estimado antes de habituación:          ___ segundos
+```
+
+### Los tres factores sin calibrar (dicho explícitamente)
+
+El factor de normalización de `heterogeneity` (×30, tanto en cámara como
+en luz) y los pesos máximos (4% zoom, 25% inclinación de luz) son una
+primera aproximación razonada, no calibrada contra el organismo corriendo
+en vivo. No tengo forma de saber si 30 es el número correcto sin verlo —
+puede que el acercamiento sea imperceptible, o exagerado. Es lo primero
+que ajustaría con tu observación.
+
+---
+
 ## Sprint 04 — "La Primera Revelación"
 
 **Estado: PENDING ART REVIEW** (ver sección final — no es un tecnicismo, es una regla que pediste explícitamente)

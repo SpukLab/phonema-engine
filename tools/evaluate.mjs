@@ -23,7 +23,7 @@ import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const TARGET_TIMES = [0, 30, 60, 180];
+const TARGET_TIMES = [0, 15, 30, 45, 60, 90, 120, 150, 180];
 const OUT_DIR = path.resolve("evaluation");
 
 async function main() {

@@ -74,7 +74,12 @@ export class Organism {
 
   private static readonly BASE_LIGHT_DIR = new THREE.Vector3(0.4, 0.6, 0.8).normalize();
 
-  update(stateTexture: THREE.Texture, elapsed: number): void {
+  update(
+    stateTexture: THREE.Texture,
+    elapsed: number,
+    peakDirection?: THREE.Vector3,
+    heterogeneity = 0
+  ): void {
     this.material.uniforms.uState.value = stateTexture;
     this.material.uniforms.uTime.value = elapsed;
 
@@ -86,6 +91,17 @@ export class Organism {
     const dir = Organism.BASE_LIGHT_DIR.clone();
     dir.x += Math.sin(elapsed * (2 * Math.PI / 137)) * 0.22;
     dir.y += Math.cos(elapsed * (2 * Math.PI / 163)) * 0.14;
+
+    // Sesgo del sensor: cuando hay heterogeneidad alta (una reorganización
+    // en curso), la luz se inclina levemente hacia esa región — nunca
+    // más de un 25% de influencia, y siempre sumado a la deriva propia,
+    // nunca en su lugar. Mismo factor de normalización sin calibrar que
+    // en App.ts — pendiente de verse en vivo antes de confiar en él.
+    if (peakDirection) {
+      const revealWeight = THREE.MathUtils.clamp(heterogeneity * 30, 0, 1) * 0.25;
+      dir.lerp(peakDirection, revealWeight);
+    }
+
     dir.normalize();
     (this.material.uniforms.uKeyLightDir.value as THREE.Vector3).copy(dir);
   }

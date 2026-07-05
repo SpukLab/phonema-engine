@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Simulation } from "./Simulation";
 import { Organism } from "./Organism";
+import { RevelationSensor } from "./RevelationSensor";
 
 export class App {
   private renderer: THREE.WebGLRenderer;
@@ -8,6 +9,7 @@ export class App {
   private camera: THREE.PerspectiveCamera;
   private simulation: Simulation;
   private organism: Organism;
+  private sensor: RevelationSensor;
 
   private clock: THREE.Clock;
   private container: HTMLElement;
@@ -79,6 +81,10 @@ export class App {
     this.organism = new Organism(this.simulation.stateTexture);
     this.scene.add(this.organism.mesh);
 
+    // El sensor observa; nunca escribe a uDiffusion/uReactionStrength/etc.
+    // Solo cámara y luz lo consumen (ver advance() y Organism.update()).
+    this.sensor = new RevelationSensor(this.renderer);
+
     this.clock = new THREE.Clock();
 
     this.resize();
@@ -101,7 +107,22 @@ export class App {
     this.elapsedTotal += delta;
 
     this.simulation.step(delta);
-    this.organism.update(this.simulation.stateTexture, this.elapsedTotal);
+    this.sensor.updateFromState(this.simulation.stateTexture);
+
+    // Dirección aproximada (no exacta) hacia el punto de mayor tensión
+    // detectado por el sensor, a partir de su UV en la textura de estado.
+    // La convención de UV del icosaedro de three.js es aproximadamente
+    // equirectangular — esto es una inversión aproximada, suficiente
+    // para una inclinación sutil, no para precisión geométrica.
+    const longitude = (this.sensor.peakUV.x - 0.5) * Math.PI * 2;
+    const latitude = (0.5 - this.sensor.peakUV.y) * Math.PI;
+    const peakDirection = new THREE.Vector3(
+      Math.cos(latitude) * Math.cos(longitude),
+      Math.sin(latitude),
+      Math.cos(latitude) * Math.sin(longitude)
+    );
+
+    this.organism.update(this.simulation.stateTexture, this.elapsedTotal, peakDirection, this.sensor.heterogeneity);
 
     // Deriva autónoma extremadamente lenta — nunca espectacular. Las tres
     // frecuencias son deliberadamente no conmensurables entre sí (no hay
@@ -112,9 +133,17 @@ export class App {
     const driftY = Math.cos(this.elapsedTotal * 0.0134) * 0.11;
     const dolly = Math.sin(this.elapsedTotal * 0.0053) * 0.18;
 
+    // Inclinación del sensor: un acercamiento sutil (hasta ~4%) cuando la
+    // heterogeneidad detectada sube — nunca reemplaza la deriva autónoma,
+    // solo la modula. El factor de normalización (30) es una primera
+    // aproximación sin calibrar contra el organismo corriendo en vivo;
+    // necesita verse antes de confiar en el número.
+    const revealPush = THREE.MathUtils.clamp(this.sensor.heterogeneity * 30, 0, 1);
+    const revealZoom = -0.04 * revealPush * App.CAMERA_BASE_Z;
+
     this.camera.position.x = driftX;
     this.camera.position.y = driftY;
-    this.camera.position.z = App.CAMERA_BASE_Z + dolly;
+    this.camera.position.z = App.CAMERA_BASE_Z + dolly + revealZoom;
     this.camera.lookAt(0, 0, 0);
   }
 
@@ -169,6 +198,7 @@ export class App {
     this.renderer.setAnimationLoop(null);
     this.simulation.dispose();
     this.organism.dispose();
+    this.sensor.dispose();
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
