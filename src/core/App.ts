@@ -20,7 +20,14 @@ export class App {
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
-      powerPreference: "high-performance"
+      powerPreference: "high-performance",
+      // Necesario para que Evaluation Mode pueda releer el canvas vía
+      // drawImage() después de renderizar. Sin esto, WebGL limpia el
+      // buffer tras componer el frame, y cualquier lectura posterior
+      // (aunque sea en el mismo tick) da negro/cero — exactamente el
+      // bug que dejaba pixelMetrics en cero mientras simulationStats
+      // (que lee la GPU directamente, no el canvas) ya funcionaba.
+      preserveDrawingBuffer: true
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x050505, 1);
