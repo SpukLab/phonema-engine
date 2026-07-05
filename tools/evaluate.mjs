@@ -50,6 +50,13 @@ async function main() {
   });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
+  // WebGL por software (SwiftShader) es órdenes de magnitud más lento que
+  // GPU real. Avanzar la simulación varios "segundos simulados" puede
+  // tardar minutos reales bajo software rendering — no es un cuelgue,
+  // es el costo real de renderizar sin GPU. Los 30s por defecto de
+  // Playwright para cualquier acción son insuficientes acá.
+  page.setDefaultTimeout(300000);
+
   // Diagnóstico real: si algo falla, queremos verlo en la consola, no
   // adivinarlo después mirando un PNG en blanco.
   page.on("console", (msg) => console.log(`[browser:${msg.type()}]`, msg.text()));
@@ -85,13 +92,18 @@ async function main() {
   const frames = [];
 
   for (const t of TARGET_TIMES) {
+    const stepStart = Date.now();
+    console.log(`Avanzando simulacion a t=${t}s (esto puede tardar varios minutos bajo software rendering)...`);
+
     await page.evaluate((seconds) => {
       (window).__phonema.advanceTo(seconds);
     }, t);
 
+    console.log(`  avance completado en ${((Date.now() - stepStart) / 1000).toFixed(1)}s reales`);
+
     const label = String(t).padStart(3, "0");
     const filePath = path.join(OUT_DIR, `Frame_${label}.png`);
-    await page.screenshot({ path: filePath });
+    await page.screenshot({ path: filePath, timeout: 300000 });
 
     const snapshot = await page.evaluate(() => (window).__phonema.getSnapshot());
 
