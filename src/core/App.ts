@@ -18,6 +18,13 @@ export class App {
   private static readonly CAMERA_BASE_Z = 3.6;
   private revelationEnabled: boolean;
 
+  // Telemetría del último advance() — expuesta en getEvaluationSnapshot()
+  // para poder distinguir, con datos, si el problema es la ganancia del
+  // sensor, el timing, o la variable observada (ver discusión Sprint 05b).
+  private lastCameraTarget = new THREE.Vector3();
+  private lastRevealZoom = 0;
+  private lastRevealPush = 0;
+
   constructor(container: HTMLElement, config: { revelationEnabled?: boolean } = {}) {
     this.container = container;
     this.revelationEnabled = config.revelationEnabled ?? true;
@@ -109,7 +116,7 @@ export class App {
     this.elapsedTotal += delta;
 
     this.simulation.step(delta);
-    this.sensor.updateFromState(this.simulation.stateTexture);
+    this.sensor.updateFromState(this.simulation.stateTexture, this.elapsedTotal);
 
     // Dirección aproximada (no exacta) hacia el punto de mayor tensión
     // detectado por el sensor, a partir de su UV en la textura de estado.
@@ -150,6 +157,12 @@ export class App {
     // comportamiento idéntico al Sprint 04.
     const revealPush = THREE.MathUtils.clamp(heterogeneity * 30, 0, 1);
     const revealZoom = -0.04 * revealPush * App.CAMERA_BASE_Z;
+
+    // cameraTarget = adonde iría la cámara sin el sensor (deriva pura);
+    // cameraOffset/zoomApplied = lo que el sensor efectivamente movió.
+    this.lastCameraTarget.set(driftX, driftY, App.CAMERA_BASE_Z + dolly);
+    this.lastRevealZoom = revealZoom;
+    this.lastRevealPush = revealPush;
 
     this.camera.position.x = driftX;
     this.camera.position.y = driftY;
@@ -194,7 +207,17 @@ export class App {
       camera: {
         fov: this.camera.fov,
         position: this.camera.position.toArray(),
-        aspect: this.camera.aspect
+        aspect: this.camera.aspect,
+        cameraTarget: this.lastCameraTarget.toArray(),
+        cameraOffset: this.lastRevealZoom,
+        zoomApplied: this.lastRevealPush
+      },
+      sensor: {
+        heterogeneity: this.sensor.heterogeneity,
+        rawHeterogeneity: this.sensor.rawHeterogeneity,
+        dHdt: this.sensor.dHdt,
+        peakUV: this.sensor.peakUV.toArray(),
+        sensorDelayFrames: this.sensor.framesSinceLastReadback
       },
       simulationStats: this.simulation.readStats()
     };

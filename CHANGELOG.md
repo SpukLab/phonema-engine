@@ -5,6 +5,69 @@ El resultado se evalúa mirando, no leyendo código.
 
 ---
 
+## Sprint 05c — "Instrumentación, no calibración"
+
+**Estado: PENDING (falta re-correr el experimento con la telemetría nueva)**
+
+**Build en vivo:** https://spuklab.github.io/phonema-engine/
+
+### Lo que pasó
+
+El experimento A/B (con/sin `RevelationSensor`) dio una diferencia de
+cámara de **0.01% a 0.04%** entre condiciones — imperceptible. La
+conclusión correcta no es "el sensor no funciona", es **"no teníamos
+instrumentación suficiente para saber por qué"**. Tres hipótesis, ninguna
+descartada todavía:
+
+- **H1 — ganancia demasiado baja.** El factor ×30 nunca se calibró contra
+  un valor real de `heterogeneity`; pudo haber quedado muy por debajo de
+  lo necesario.
+- **H2 — el sensor llega tarde.** La Narrative Review reportó los
+  momentos de atención en t=2s, 2s, 5s — mucho antes de que el sensor
+  haga su primer readback (~20 frames). Puede estar perfectamente
+  calibrado para un evento que, para el espectador, ya pasó.
+- **H3 — la variable observada es la equivocada.** Quizás lo que predice
+  atención no es heterogeneidad espacial en un instante, sino su
+  velocidad de cambio (`dH/dt`), o directamente otra cosa (aparición de
+  estructura, ruptura de simetría).
+
+No se puede elegir entre H1/H2/H3 sin datos — por eso este capítulo es
+solo instrumentación, no otro ajuste de números.
+
+### Qué se agregó
+
+- `RevelationSensor` ahora expone, además de `heterogeneity` (suavizado):
+  `rawHeterogeneity` (sin suavizar), `dHdt` (su derivada respecto al
+  tiempo simulado), y `framesSinceLastReadback` (qué tan atrasada puede
+  estar la señal en un instante dado).
+- `App.getEvaluationSnapshot()` ahora incluye todo eso más `cameraTarget`
+  (adonde iría la cámara sin el sensor), `cameraOffset` y `zoomApplied`
+  (lo que el sensor efectivamente movió) — separando explícitamente la
+  deriva autónoma de la intervención del sensor en los datos, no solo
+  en el código.
+- Evaluation Mode ahora muestrea denso en 0-10s (`0,1,2,3,5,8,10s`)
+  además de los puntos anteriores — es exactamente la ventana que la
+  Narrative Review marcó como relevante y que antes no medíamos.
+
+### Cómo correr el experimento otra vez
+
+Mismos comandos de siempre (`with-revelation` / `without-revelation`).
+Esta vez, además de mirar las imágenes, hay que comparar:
+
+```
+rawHeterogeneity, dHdt, sensorDelayFrames   (¿qué vio el sensor y cuándo?)
+cameraOffset, zoomApplied                    (¿qué hizo con eso?)
+```
+
+contra los timestamps de tu Narrative Review (t=2s, 2s, 5s). Si
+`dHdt` tiene un pico claro cerca de esos segundos y `heterogeneity` no,
+eso apunta a H3. Si el pico existe pero `sensorDelayFrames` muestra que
+la señal llegó tarde, apunta a H2. Si no hay ningún pico reconocible en
+ninguna variable cerca de t=2-5s, apunta a H1 — o a que la variable
+correcta todavía no está instrumentada.
+
+---
+
 ## Sprint 05 — "Sistema de Revelación"
 
 **Estado: PENDING ART REVIEW** (falta correr Evaluation Mode y completar la Narrative Review de abajo)

@@ -23,7 +23,10 @@ import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const TARGET_TIMES = [0, 15, 30, 45, 60, 90, 120, 150, 180];
+// Denso en 0-10s: es exactamente la ventana donde la Narrative Review
+// reportó los momentos de atención (t=2s, 2s, 5s) — antes no medíamos
+// nada ahí, saltábamos directo de 0s a 15s.
+const TARGET_TIMES = [0, 1, 2, 3, 5, 8, 10, 15, 30, 45, 60, 90, 120, 150, 180];
 
 async function main() {
   const baseUrl = process.argv[2];
