@@ -12,8 +12,9 @@ const params = new URLSearchParams(window.location.search);
 // comparar. No es una característica creativa nueva — es la
 // infraestructura mínima sin la cual ese experimento es imposible.
 const revelationEnabled = params.get("revelation") !== "off";
+const species = params.get("species") === "lithic" ? "lithic" : "luminous";
 
-const app = new App(container, { revelationEnabled });
+const app = new App(container, { revelationEnabled, species });
 
 const isEvaluationMode = params.has("eval");
 

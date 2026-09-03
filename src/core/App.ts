@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Simulation } from "./Simulation";
 import { Organism } from "./Organism";
+import { LuminousOrganism } from "./LuminousOrganism";
 import { RevelationSensor } from "./RevelationSensor";
 
 export class App {
@@ -8,7 +9,16 @@ export class App {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private simulation: Simulation;
-  private organism: Organism;
+  private organism: {
+    mesh: THREE.Object3D;
+    update: (
+      stateTexture: THREE.Texture,
+      elapsed: number,
+      peakDirection?: THREE.Vector3,
+      heterogeneity?: number
+    ) => void;
+    dispose: () => void;
+  };
   private sensor: RevelationSensor;
 
   private clock: THREE.Clock;
@@ -25,9 +35,13 @@ export class App {
   private lastRevealZoom = 0;
   private lastRevealPush = 0;
 
-  constructor(container: HTMLElement, config: { revelationEnabled?: boolean } = {}) {
+  constructor(
+    container: HTMLElement,
+    config: { revelationEnabled?: boolean; species?: "lithic" | "luminous" } = {}
+  ) {
     this.container = container;
     this.revelationEnabled = config.revelationEnabled ?? true;
+    const species = config.species ?? "luminous";
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -87,7 +101,9 @@ export class App {
       ageDecay: 0.002
     });
 
-    this.organism = new Organism(this.simulation.stateTexture);
+    this.organism = species === "lithic"
+      ? new Organism(this.simulation.stateTexture)
+      : new LuminousOrganism(this.simulation.stateTexture);
     this.scene.add(this.organism.mesh);
 
     // El sensor observa; nunca escribe a uDiffusion/uReactionStrength/etc.
