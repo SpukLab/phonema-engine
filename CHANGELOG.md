@@ -5,6 +5,62 @@ El resultado se evalúa mirando, no leyendo código.
 
 ---
 
+## Debug — Luminous invisible en runtime
+
+**Estado: DIAGNÓSTICO ENVIADO, esperando evidencia real (no puedo abrir un navegador)**
+
+### El cálculo pedido (real, no una suposición)
+
+Con los parámetros actuales (`uPointScale=22`, cámara en z≈3.6, FOV=24°,
+radio de la colonia ≈0.82-0.98, `aSize` entre 4.0 y 11.5):
+
+```
+peor caso (más lejos, aSize mínimo):  gl_PointSize crudo = 19.21
+mejor caso (más cerca, aSize máximo): gl_PointSize crudo = 96.56
+```
+
+**El clamp del shader es `clamp(..., 1.0, 18.0)` — el 100% de las
+6200 partículas piden exactamente 18px, sin importar posición ni
+tamaño.** Esto descarta que la fórmula esté pidiendo tamaños sub-píxel.
+El shader pide un tamaño saludable siempre.
+
+### Lo que esto implica
+
+Si el shader pide 18px para todas las partículas y en pantalla se ve
+como mucho un punto minúsculo, hay dos posibilidades que no puedo
+distinguir sin ver el runtime real:
+
+1. El driver/GPU está concediendo mucho menos de lo pedido —
+   `gl_PointSize` no está garantizado por la spec de WebGL más allá de
+   1.0; el máximo real (`ALIASED_POINT_SIZE_RANGE`) es específico del
+   hardware y el shader no tiene forma de saberlo.
+2. Algo aguas arriba (atributos, `uState`, coordenadas) está fallando
+   para casi todas las partículas salvo una.
+
+### Instrumentación agregada (sin tocar el render normal)
+
+- `LuminousOrganism` ahora loguea en consola
+  `ALIASED_POINT_SIZE_RANGE` real del hardware al construirse — es la
+  única forma de confirmar o descartar la hipótesis 1 con evidencia.
+- `?luminousDebug=1` en la URL: fuerza posición cruda del fibonacci
+  sphere (ignora toda la física/comportamiento), tamaño fijo de 40px,
+  y color blanco sólido. Si con esto se ve una esfera de puntos blanca
+  y grande, el problema está en el cálculo de `value`/`tension`/`age`/
+  `uState`, no en la geometría ni en el tamaño. Si NO se ve ni así, el
+  problema es más profundo (hardware, atributos, o compilación).
+
+### Qué necesito de vos
+
+1. Abrí `https://spuklab.github.io/phonema-engine/` normal, abrí la
+   consola del navegador (F12), y pasame el valor exacto que loguea
+   `ALIASED_POINT_SIZE_RANGE`.
+2. Abrí `https://spuklab.github.io/phonema-engine/?luminousDebug=1` y
+   decime qué ves — nada, un punto, o una esfera blanca grande.
+3. Con esas dos piezas de evidencia real, aplico el fix exacto — no
+   antes.
+
+---
+
 ## Sprint 05c — "Instrumentación, no calibración"
 
 **Estado: PENDING (falta re-correr el experimento con la telemetría nueva)**

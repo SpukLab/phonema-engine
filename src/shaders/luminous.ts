@@ -6,6 +6,7 @@ uniform float uTime;
 uniform float uPointScale;
 uniform float uExpansion;
 uniform float uDrift;
+uniform float uDebugMode;
 
 attribute float aSeed;
 attribute float aPhase;
@@ -16,6 +17,7 @@ varying float vActivity;
 varying float vAge;
 varying float vDepth;
 varying float vSeed;
+varying float vDebugMode;
 
 const float PI = 3.141592653589793;
 
@@ -71,20 +73,36 @@ void main() {
     sin(aPhase * 0.73 + 1.2) * 0.025
   );
 
-  vec4 mvPosition = modelViewMatrix * vec4(worldPos, 1.0);
+  // DIAGNÓSTICO (Sprint debug, ver CHANGELOG): con uDebugMode=1, ignora
+  // toda la física/comportamiento y usa la posición cruda del fibonacci
+  // sphere. Si esto SÍ se ve como una esfera de puntos, el problema está
+  // en value/tension/age/uState o en el cálculo de release/lateral, no
+  // en la geometría base ni en el tamaño de punto.
+  vec3 finalWorldPos = mix(worldPos, n * 0.9, uDebugMode);
+
+  vec4 mvPosition = modelViewMatrix * vec4(finalWorldPos, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
   float distanceScale = 1.0 / max(0.8, -mvPosition.z);
-  gl_PointSize = clamp(
+  float computedSize = clamp(
     aSize * uPointScale * distanceScale * (1.0 + activity * 0.65),
     1.0,
     18.0
   );
 
+  // DIAGNÓSTICO: con uDebugMode=1, fuerza un tamaño grande fijo (40px),
+  // ignorando aSize/distancia/actividad. Si esto SÍ se ve grande, el
+  // problema es el cálculo de computedSize (o el hardware lo recorta
+  // igual — ver el log de ALIASED_POINT_SIZE_RANGE en consola). Si NO
+  // se ve ni así, el hardware está limitando gl_PointSize por debajo
+  // de lo pedido, o las posiciones/atributos no están llegando al shader.
+  gl_PointSize = mix(computedSize, 40.0, uDebugMode);
+
   vActivity = activity;
   vAge = age;
   vDepth = clamp((-mvPosition.z - 1.5) / 4.0, 0.0, 1.0);
   vSeed = aSeed;
+  vDebugMode = uDebugMode;
 }
 `;
 
@@ -100,11 +118,21 @@ varying float vActivity;
 varying float vAge;
 varying float vDepth;
 varying float vSeed;
+varying float vDebugMode;
 
 void main() {
   vec2 p = gl_PointCoord - 0.5;
   float r = length(p);
   if (r > 0.5) discard;
+
+  // DIAGNÓSTICO: con uDebugMode=1, blanco sólido opaco — ignora todo el
+  // cálculo de color/actividad/edad/profundidad. Si esto tampoco es
+  // visible, el problema no es de color/alpha, es geométrico o de
+  // compilación del shader.
+  if (vDebugMode > 0.5) {
+    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    return;
+  }
 
   float body = smoothstep(0.5, 0.08, r);
   float core = smoothstep(0.20, 0.0, r);

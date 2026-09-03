@@ -13,8 +13,11 @@ const params = new URLSearchParams(window.location.search);
 // infraestructura mínima sin la cual ese experimento es imposible.
 const revelationEnabled = params.get("revelation") !== "off";
 const species = params.get("species") === "lithic" ? "lithic" : "luminous";
+// Diagnóstico temporal (ver CHANGELOG) — nunca se activa a menos que se
+// pida explícitamente por URL.
+const luminousDebug = params.get("luminousDebug") === "1";
 
-const app = new App(container, { revelationEnabled, species });
+const app = new App(container, { revelationEnabled, species, luminousDebug });
 
 const isEvaluationMode = params.has("eval");
 

@@ -22,7 +22,20 @@ export class LuminousOrganism {
   readonly mesh: THREE.Points;
   private material: THREE.ShaderMaterial;
 
-  constructor(stateTexture: THREE.Texture, count = 6200) {
+  constructor(stateTexture: THREE.Texture, renderer?: THREE.WebGLRenderer, count = 6200) {
+    // Diagnóstico real (no una suposición): el shader pide gl_PointSize
+    // hasta 18px (calculado, ver CHANGELOG), pero WebGL solo garantiza
+    // que un driver soporte como MÍNIMO tamaño 1.0 — el máximo real
+    // depende del hardware y puede ser mucho menor que lo pedido, sin
+    // ningún error ni warning, solo un clamp silencioso en el driver.
+    // Este log es la única forma de confirmar o descartar esa hipótesis.
+    if (renderer) {
+      const gl = renderer.getContext();
+      const range = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
+      // eslint-disable-next-line no-console
+      console.log("[LuminousOrganism] ALIASED_POINT_SIZE_RANGE real del hardware:", range);
+    }
+
     const positions = new Float32Array(count * 3);
     const seeds = new Float32Array(count);
     const phases = new Float32Array(count);
@@ -78,12 +91,18 @@ export class LuminousOrganism {
         uColdColor: { value: new THREE.Color(0x6f89a4) },
         uWarmColor: { value: new THREE.Color(0xe6a35f) },
         uCoreColor: { value: new THREE.Color(0xffeee0) },
-        uOpacity: { value: 0.82 }
+        uOpacity: { value: 0.82 },
+        uDebugMode: { value: 0.0 }
       }
     });
 
     this.mesh = new THREE.Points(geometry, this.material);
     this.mesh.frustumCulled = false;
+  }
+
+  /** Diagnóstico temporal (ver CHANGELOG) — no usar en producción. */
+  setDebugMode(enabled: boolean): void {
+    this.material.uniforms.uDebugMode.value = enabled ? 1.0 : 0.0;
   }
 
   update(

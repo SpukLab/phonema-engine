@@ -37,7 +37,7 @@ export class App {
 
   constructor(
     container: HTMLElement,
-    config: { revelationEnabled?: boolean; species?: "lithic" | "luminous" } = {}
+    config: { revelationEnabled?: boolean; species?: "lithic" | "luminous"; luminousDebug?: boolean } = {}
   ) {
     this.container = container;
     this.revelationEnabled = config.revelationEnabled ?? true;
@@ -103,8 +103,15 @@ export class App {
 
     this.organism = species === "lithic"
       ? new Organism(this.simulation.stateTexture)
-      : new LuminousOrganism(this.simulation.stateTexture);
+      : new LuminousOrganism(this.simulation.stateTexture, this.renderer);
     this.scene.add(this.organism.mesh);
+
+    // Diagnóstico temporal (ver CHANGELOG): fuerza tamaño/color fijos en
+    // Luminous para aislar si el bug de invisibilidad está en la
+    // geometría/tamaño o en el cálculo de comportamiento/color.
+    if (config.luminousDebug && this.organism instanceof LuminousOrganism) {
+      this.organism.setDebugMode(true);
+    }
 
     // El sensor observa; nunca escribe a uDiffusion/uReactionStrength/etc.
     // Solo cámara y luz lo consumen (ver advance() y Organism.update()).
